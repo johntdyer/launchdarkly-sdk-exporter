@@ -1,0 +1,93 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "LaunchDarkly SDK Usage",
+    "tags": ["launchdarkly", "sdk", "usage"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "SDK Clients by Type",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum by (sdk_type) (launchdarkly_sdk_clients_total)",
+            "legendFormat": "{{sdk_type}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "title": "Top 10 SDK Versions",
+        "type": "bargauge",
+        "targets": [
+          {
+            "expr": "topk(10, sum by (sdk_name, version) (launchdarkly_sdk_clients_total))",
+            "legendFormat": "{{sdk_name}} {{version}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "title": "Monthly Active Users (30d)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "launchdarkly_mau_total{time_period=\"30d\"}",
+            "legendFormat": "MAU"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8}
+      },
+      {
+        "title": "API Requests Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(launchdarkly_exporter_api_requests_total[5m])",
+            "legendFormat": "Req/sec"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8}
+      },
+      {
+        "title": "Last Scrape Age",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "time() - launchdarkly_exporter_last_scrape_timestamp_seconds",
+            "legendFormat": "Seconds"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8}
+      },
+      {
+        "title": "API Success Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(launchdarkly_exporter_api_requests_total{status!=\"error\"}[5m]) / rate(launchdarkly_exporter_api_requests_total[5m]) * 100",
+            "legendFormat": "Success %"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8}
+      },
+      {
+        "title": "SDK Versions Over Time",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "count by (sdk_name, version) (launchdarkly_sdk_clients_total)",
+            "legendFormat": "{{sdk_name}} {{version}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 12}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  }
+}

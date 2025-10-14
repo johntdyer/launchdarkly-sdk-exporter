@@ -1,0 +1,5 @@
+#shellcheck disable=all
+prometheus-client==0.20.0
+requests==2.31.0
+Flask==3.0.0
+python-dotenv
