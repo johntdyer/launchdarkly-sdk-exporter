@@ -1,29 +1,28 @@
 # LaunchDarkly SDK Prometheus Exporter
 
-This Prometheus exporter collects SDK usage metrics from LaunchDarkly's MAU (Monthly Active Users) API and exposes them as Prometheus metrics.
+A Prometheus exporter that collects LaunchDarkly SDK usage metrics and service connection data, providing visibility into SDK versions in use and billable connection counts.
 
 ## Features
 
-## Features
-
-- 📊 Collects **stream usage metrics by SDK version** from LaunchDarkly
-- 🔄 Tracks both **client and server SDK** usage with actual connection counts
-- 📈 Exposes metrics in **Prometheus format** for monitoring and alerting
-- 🐳 **Docker support** with health checks and multi-container setup
-- 🚀 **Flask-based web server** with /metrics, /health, and / endpoints
-- 🔐 Secure API authentication with beta API version support
-- ⚙️ Configurable scrape intervals and time ranges
-- 📉 No default Python metrics (clean metrics output)
+- 📊 **SDK Version Tracking** - Monitor SDK versions and connection counts by language and version
+- 💰 **Service Connection Monitoring** - Track billable server-side and client-side connections
+- 📈 **Prometheus Format** - Standard Prometheus metrics endpoint for easy integration
+- 🐳 **Docker Support** - Containerized deployment with Docker Compose
+- 🚀 **Flask Web Server** - Built-in endpoints: `/metrics`, `/health`, `/`
+- 🔐 **Secure API Access** - LaunchDarkly API authentication with beta API support
+- ⚙️ **Configurable** - Customizable scrape intervals and time ranges
+- 📉 **Clean Metrics** - No default Python metrics, only LaunchDarkly data
+- 🔍 **Timestamp Labels** - Track when metrics were collected
 
 ## How It Works
 
-The exporter uses LaunchDarkly's **Stream usage by SDK version API** to collect real-time connection data:
+The exporter uses LaunchDarkly's usage APIs to collect metrics:
 
-1. **Fetches stream usage data** for both client and server SDKs
-2. **Extracts SDK name, version, and connection counts** from the time-series data
-3. **Calculates maximum connections** for each SDK/version combination
-4. **Exposes metrics** via Prometheus-compatible endpoint
-5. **Updates metrics** on a configurable interval (default: 5 minutes)
+1. **Stream Usage by SDK Version API** - Fetches SDK version distribution and connection counts
+2. **Service Connections API** - Retrieves billable server-side connection counts
+3. **Data Processing** - Extracts the most recent data point with timestamp
+4. **Metric Exposition** - Exposes data via Prometheus-compatible `/metrics` endpoint
+5. **Automated Collection** - Updates metrics on a configurable interval (default: 5 minutes)
 
 ## API Headers
 
@@ -43,17 +42,42 @@ The exporter exposes the following HTTP endpoints:
 
 ## Metrics
 
-The exporter provides the following Prometheus metrics (only custom metrics, no default internal metrics):
+The exporter provides the following Prometheus metrics:
 
-- `launchdarkly_sdk_clients_total` - Maximum streaming connections by SDK type and version
-  - Labels: `sdk_name`, `sdk_type`, `version`
-  - Value: Peak number of concurrent connections in the time period
-- `launchdarkly_mau_total` - Total Monthly Active Users across all SDKs
-  - Labels: `time_period`
-- `launchdarkly_exporter_api_requests_total` - Total API requests made to LaunchDarkly
+### SDK Usage Metrics
+
+- **`launchdarkly_sdk_clients_by_type_and_version`** - SDK connections by language and version
+  - Labels: `sdk_name`, `version`, `timestamp`
+  - Type: Gauge
+  - Description: Number of connections for each SDK version at the time of collection
+
+### Connection Count Metrics
+
+- **`launchdarkly_service_connection_count`** - Server-side service connections (billable)
+  - Labels: `timestamp`
+  - Type: Gauge
+  - Description: Total server-side connections that count toward billing
+
+- **`launchdarkly_client_side_connection_count`** - Client-side connections
+  - Labels: `timestamp`
+  - Type: Gauge
+  - Description: Total client-side SDK connections
+
+### Exporter Metrics
+
+- **`launchdarkly_exporter_api_requests_total`** - API request counter
   - Labels: `endpoint`, `status`
-- `launchdarkly_exporter_last_scrape_timestamp_seconds` - Unix timestamp of the last successful scrape
-- `launchdarkly_exporter_info` - Information about the exporter (version, base URL)
+  - Type: Counter
+  - Description: Total API requests made to LaunchDarkly
+
+- **`launchdarkly_exporter_last_scrape_timestamp_seconds`** - Last scrape time
+  - Type: Gauge
+  - Description: Unix timestamp of the last successful metrics collection
+
+- **`launchdarkly_exporter_info`** - Exporter information
+  - Labels: `version`, `base_url`
+  - Type: Info
+  - Description: Version and configuration details
 
 ## Requirements
 
@@ -77,16 +101,19 @@ The exporter is configured via environment variables:
 ### Local Development
 
 1. Install dependencies:
+
    ```bash
    pip install -r requirements.txt
    ```
 
 2. Set your LaunchDarkly API key:
+
    ```bash
    export LAUNCHDARKLY_API_KEY="your-api-key-here"
    ```
 
 3. Run the exporter:
+
    ```bash
    python main.py
    ```
@@ -167,28 +194,45 @@ scrape_configs:
 Here are some useful Prometheus queries for the exported metrics:
 
 ### SDK Version Distribution
+
 ```promql
-count by (sdk_name, version) (launchdarkly_sdk_clients_total)
+launchdarkly_sdk_clients_by_type_and_version
 ```
 
-### Client vs Server SDK Usage
+### Total Connections by SDK
+
 ```promql
-sum by (sdk_type) (launchdarkly_sdk_clients_total)
+sum by (sdk_name) (launchdarkly_sdk_clients_by_type_and_version)
 ```
 
-### Top 10 Most Used SDKs
+### Top 10 Most Used SDK Versions
+
 ```promql
-topk(10, sum by (sdk_name) (launchdarkly_sdk_clients_total))
+topk(10, launchdarkly_sdk_clients_by_type_and_version)
 ```
 
-### MAU Trends
+### Service Connection Count (Billable)
+
 ```promql
-launchdarkly_mau_total{time_period="30d"}
+launchdarkly_service_connection_count
 ```
 
-### Exporter Health
+### Connection Trends Over Time
+
+```promql
+rate(launchdarkly_service_connection_count[1h])
+```
+
+### Exporter Health Check
+
 ```promql
 time() - launchdarkly_exporter_last_scrape_timestamp_seconds < 600
+```
+
+### API Error Rate
+
+```promql
+rate(launchdarkly_exporter_api_requests_total{status="error"}[5m])
 ```
 
 ## Grafana Dashboard
@@ -201,16 +245,26 @@ Create visualizations in Grafana using the exported metrics:
 4. **API Health**: Status of LaunchDarkly API calls
 5. **Top SDKs**: Bar chart of most popular SDK versions
 
-## API Limitations
+## API Details & Limitations
 
-**Important Notes:**
+### APIs Used
 
-- The Stream usage by SDK version API provides actual connection counts
-- Metrics show the maximum concurrent connections for each SDK/version
-- Data granularity depends on age: minutely (< 2 hours), hourly (< 2 days), daily (older)
-- The API is in beta and subject to changes
-- Rate limiting may apply to API requests
-- Default time range is last 7 days for optimal data coverage
+1. **Stream Usage by SDK Version API** (`/api/v2/usage/streams/{source}/bysdkversion`)
+   - Provides SDK version distribution and connection counts
+   - Returns time-series data with metadata mapping
+
+2. **Service Connections API** (`/api/v2/usage/service-connections`)
+   - Provides billable connection counts
+   - Supports daily, hourly, or monthly granularity
+
+### Important Notes
+
+- **Beta API**: The stream usage API is in beta and subject to changes
+- **Timestamp Handling**: The exporter uses the most recent non-empty data point (API sometimes returns empty latest values)
+- **Version Cleaning**: SDK versions with git commit hashes (e.g., `8.7.0+60328b1f`) are cleaned to remove the hash portion
+- **Index Mapping**: Metadata array indices map to series data keys (e.g., index 0 → key "0")
+- **Rate Limiting**: API rate limits may apply; adjust scrape intervals accordingly
+- **Data Lag**: Most recent data may have a slight delay due to API processing
 
 ## Development
 

@@ -2,7 +2,7 @@
 """
 LaunchDarkly SDK Usage Prometheus Exporter
 
-This exporter fetches SDK usage data from LaunchDarkly's MAU API
+This exporter fetches SDK usage data from LaunchDarkly's usage APIs
 and exposes it as Prometheus metrics.
 """
 
@@ -11,12 +11,10 @@ import time
 import logging
 import requests
 import threading
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from flask import Flask, Response
 from prometheus_client import Gauge, Counter, Info, CONTENT_TYPE_LATEST, generate_latest
 from prometheus_client.core import CollectorRegistry
-
-from datetime import datetime, timedelta, timezone
 
 
 
@@ -50,7 +48,6 @@ class LaunchDarklySDKExporter:
         self.registry = CollectorRegistry(auto_describe=False)
 
         # Prometheus metrics (using custom registry)
-        # SDK's by version lang and version
         self.sdk_clients_gauge = Gauge(
             'launchdarkly_sdk_clients_by_type_and_version',
             'Total number of SDK clients by type and version',
@@ -58,8 +55,6 @@ class LaunchDarklySDKExporter:
             registry=self.registry
         )
 
-
-        ### Connection count we're billed on, server side connections
         self.service_connection_gauge = Gauge(
             'launchdarkly_service_connection_count',
             'Total Service Connections count',
@@ -67,12 +62,13 @@ class LaunchDarklySDKExporter:
             registry=self.registry
         )
 
-        self.service_client_side_connection_gauge = Gauge(
-            'launchdarkly_client_side_connection_count',
-            'Total Client side connection counts',
-            ['timestamp'],
-            registry=self.registry
-        )
+        # not implmented yet
+        # self.service_client_side_connection_gauge = Gauge(
+        #     'launchdarkly_client_side_connection_count',
+        #     'Total Client side connection counts',
+        #     ['timestamp'],
+        #     registry=self.registry
+        # )
         self.api_requests_total = Counter(
             'launchdarkly_exporter_api_requests_total',
             'Total API requests made to LaunchDarkly',
@@ -106,76 +102,22 @@ class LaunchDarklySDKExporter:
             version: Raw version string
 
         Returns:
-            Cleaned version string
+            Cleaned version string (removes git commit hashes)
         """
-        # Replace invalid characters with underscores
+        # Remove git commit hash if present (e.g., "8.7.0+60328b1f" -> "8.7.0")
         cleaned = version.split('+')[0]
-        # ''.join(c if c.isalnum() or c in '._-' else '_' for c in version)
-        # cleaned = cleaned.split('+')[0]
         return cleaned
-
-
-
-
-    def get_timestamps(self) -> tuple:
-        """
-        Get the timestamps for the last 24 hours
-
-        Returns:
-            Tuple of (from_time, to_time)
-        """
-        # Calculate time range (last 7 days for better data granularity)
-        now = datetime.now()
-        seven_days_ago = now - timedelta(days=1)
-        # one_hour_ago = now - timedelta(hours=6)
-        # Format timestamps as ISO 8601 strings
-        from_time = seven_days_ago.isoformat() + 'Z'
-
-
-        today_utc = datetime.now(timezone.utc).date()
-
-
-        # Calculate yesterday's date
-        yesterday_utc = today_utc - timedelta(days=1)
-
-        # Create a datetime object for yesterday at 11:59 PM UTC
-        target_time_utc = datetime(
-            yesterday_utc.year,
-            yesterday_utc.month,
-            yesterday_utc.day,
-            23,  # 11 PM
-            59,  # 59 minutes
-            0,   # 0 seconds
-            0,   # 0 microseconds
-            tzinfo=timezone.utc
-            )
-        start_time_utc = datetime(
-            yesterday_utc.year,
-            yesterday_utc.month,
-            yesterday_utc.day,
-            00,  #  PM
-            1,  # 1 minutes
-            0,   # 0 seconds
-            0,   # 0 microseconds
-            tzinfo=timezone.utc
-            )
-        return start_time_utc, target_time_utc
 
     def get_stream_usage_by_sdk(self, source: str = 'server',
                                 from_time: Optional[str] = None,
-                                to_time: Optional[str] = None,
-                                # sdk: Optional[str] = None,
-                                # version: Optional[str] = None
-                              ) -> Dict:
+                                to_time: Optional[str] = None) -> Dict:
         """
         Fetch stream usage by SDK version from LaunchDarkly API
 
         Args:
             source: 'client' or 'server' - source of streaming connections
-            from_time: ISO 8601 timestamp string (defaults to 24 hours ago)
-            to_time: ISO 8601 timestamp string (defaults to current time)
-            sdk: Filter by SDK name (optional)
-            version: Filter by SDK version (optional)
+            from_time: ISO 8601 timestamp string (optional)
+            to_time: ISO 8601 timestamp string (optional)
 
         Returns:
             Dict containing stream usage data with metadata and series
@@ -187,7 +129,6 @@ class LaunchDarklySDKExporter:
             params['from'] = from_time
         if to_time:
             params['to'] = to_time
-
 
         try:
             response = self.session.get(url, params=params, timeout=30)
@@ -208,23 +149,19 @@ class LaunchDarklySDKExporter:
             ).inc()
             raise
 
-    def get_client_connection_count(self,
-                                granularity:  Optional[str] = "daily",
-                                ) -> Dict:
+    def get_client_connection_count(self, granularity: Optional[str] = "daily") -> Dict:
         """
-        Fetch connections from LaunchDarkly API
+        Fetch service connections from LaunchDarkly API
 
         Args:
-            granularity: Specifies the data granularity. Defaults to `daily`. `monthly` granularity is only supported with the **month_to_date** aggregation type.<br/>Valid values: `daily`, `hourly`, `monthly`.
-
+            granularity: Data granularity - 'daily', 'hourly', or 'monthly' (default: 'daily')
 
         Returns:
-            Dict containing stream usage data with metadata and series
+            Dict containing service connection usage data with series
         """
         url = f"{self.base_url}/api/v2/usage/service-connections"
 
         params = {}
-
         if granularity:
             params['granularity'] = granularity
 
@@ -253,14 +190,12 @@ class LaunchDarklySDKExporter:
 
         Args:
             data: Response from get_client_connection_count
+            sdk_type: Type of SDK (for logging purposes)
         """
-
         series = data.get('series', [])
 
-
-        # Get the most recent data point (last item in series)
         if series:
-            # the latest is always empty becuase their api sucks, so I get first item
+            # Get the most recent data point
             latest_datapoint = series[-1]
             connections = latest_datapoint.get('0', 0)
             timestamp = latest_datapoint.get('time', 'unknown')
@@ -286,21 +221,16 @@ class LaunchDarklySDKExporter:
             logger.warning(f"No {sdk_type} SDK usage data available")
             return
 
-        # metadata contains info about each series (SDK name/version combinations)
-        # series contains time-series data points
-
-        # Extract unique SDK name/version combinations from metadata
+        # Process each SDK in the metadata
         for idx, meta in enumerate(metadata):
             sdk_name = meta.get('sdk', 'unknown')
             version = meta.get('version', 'unknown')
             # Use the index as the series key (metadata index maps to series data keys)
             series_key = str(idx)
 
-            # Get the most recent data point (last item in series)
             if series:
-                # the latest is always empty becuase their api sucks, so I get n-2
+                # Get the first data point (most recent non-empty value)
                 latest_datapoint = series[0]
-
                 connections = latest_datapoint.get(series_key, 0)
                 timestamp = latest_datapoint.get('time', 'unknown')
 
@@ -314,22 +244,14 @@ class LaunchDarklySDKExporter:
 
     def collect_metrics(self):
         """
-        Collect and update Prometheus metrics from stream usage API
+        Collect and update Prometheus metrics from LaunchDarkly usage APIs
         """
         logger.info("Starting metrics collection")
 
         try:
-
-
-            # from_time,to_time = self.get_timestamps()
-            # logger.error(f"from_time: {from_time}, to_time: {to_time}")
             # Collect server SDK stream usage
             logger.info("Fetching server SDK stream usage data")
-            server_data = self.get_stream_usage_by_sdk(
-                source='server',
-                # from_time=from_time,
-                # to_time=to_time
-            )
+            server_data = self.get_stream_usage_by_sdk(source='server')
 
             # Clear existing metrics
             self.sdk_clients_gauge.clear()
@@ -337,7 +259,8 @@ class LaunchDarklySDKExporter:
             # Process server SDK metadata and series
             self._process_stream_usage_data(server_data, 'server')
 
-            # Process client connection count
+            # Collect service connection count
+            logger.info("Fetching service connection count")
             connection_count = self.get_client_connection_count()
 
             # Clear existing metrics
