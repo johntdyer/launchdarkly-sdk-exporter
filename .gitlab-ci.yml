@@ -1,0 +1,47 @@
+stages:
+  - build
+  - push
+  - promote
+
+build_image:
+  stage: build
+  image:
+    name: docker:24.0.6-git
+  services:
+    - name: docker:24.0.6-dind
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: ""
+    IMAGE_NAME: $CI_PROJECT_NAME
+    IMAGE_VERSION: latest
+    IMAGE_FULL: "$IMAGE_NAME:$IMAGE_VERSION"
+
+  script:
+    - mkdir -p containers/linux/amd64 containers/linux/arm64
+    - docker buildx create --use
+
+    # amd64
+    - docker buildx build --platform linux/amd64 -t $IMAGE_FULL --load .
+    - docker run --rm --platform linux/amd64 $IMAGE_FULL
+    - docker save $IMAGE_FULL > ./containers/linux/amd64/${IMAGE_NAME}-${IMAGE_VERSION}.tar
+
+    # arm64
+    - docker buildx build --platform linux/arm64 -t $IMAGE_FULL --load .
+    - docker save $IMAGE_FULL > ./containers/linux/arm64/${IMAGE_NAME}-${IMAGE_VERSION}.tar
+  artifacts:
+    expire_in: 1 week
+    when: always
+    paths:
+      - containers/
+  tags:
+    - five9-gce
+
+include:
+  - project: 'fivn/platform/ci-cd'
+    ref: '2.24.0'
+    file: '/templates/container/push.yaml'
+  - project: 'fivn/platform/ci-cd'
+    ref: '2.24.0'
+    file: '/templates/container/promote.yaml'
