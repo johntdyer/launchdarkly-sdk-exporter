@@ -24,7 +24,7 @@ build_image:
 
     # amd64
     - docker buildx build --platform linux/amd64 -t $IMAGE_FULL --load .
-    - docker run --rm -e LAUNCHDARKLY_API_KEY=${LAUNCHDARKLY_API_KEY} --platform linux/amd64 $IMAGE_FULL
+    # - docker run --rm -e LAUNCHDARKLY_API_KEY=${LAUNCHDARKLY_API_KEY} --platform linux/amd64 $IMAGE_FULL
     - docker save $IMAGE_FULL > ./containers/linux/amd64/${IMAGE_NAME}-${IMAGE_VERSION}.tar
 
     # arm64
