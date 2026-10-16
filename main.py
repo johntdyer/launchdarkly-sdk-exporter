@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.WARNING)
 
+SERVICE_CONNECTION_GROUP_BY = ('sdkName', 'sdkVersion', 'sdkAppId')
+SERVICE_CONNECTION_LABELS = ['sdk_name', 'sdk_version', 'sdk_app_id']
+
+
 class LaunchDarklySDKExporter:
     """
     Prometheus exporter for LaunchDarkly SDK usage metrics
@@ -51,14 +55,16 @@ class LaunchDarklySDKExporter:
         self.sdk_clients_gauge = Gauge(
             'launchdarkly_sdk_clients_by_type_and_version',
             'Total number of SDK clients by type and version',
-            ['sdk_name', 'version', 'timestamp'],
+            ['sdk_name', 'version'],
             registry=self.registry
         )
 
+        # Cumulative month-to-date service connection minutes (resets monthly);
+        # use increase()/delta() in Grafana for per-period values.
         self.service_connection_gauge = Gauge(
-            'launchdarkly_service_connection_count',
-            'Total Service Connections count',
-            ['timestamp'],
+            'launchdarkly_service_connection_minutes',
+            'Month-to-date server-side service connection minutes',
+            SERVICE_CONNECTION_LABELS,
             registry=self.registry
         )
 
@@ -161,7 +167,7 @@ class LaunchDarklySDKExporter:
         """
         url = f"{self.base_url}/api/v2/usage/service-connections"
 
-        params = {}
+        params = {'groupBy': list(SERVICE_CONNECTION_GROUP_BY)}
         if granularity:
             params['granularity'] = granularity
 
@@ -186,25 +192,32 @@ class LaunchDarklySDKExporter:
 
     def _process_connection_count_usage_data(self, data: Dict, sdk_type: str):
         """
-        Process connection count data and update metrics
+        Process grouped service connection data and update metrics
 
         Args:
-            data: Response from get_client_connection_count
+            data: Response from get_client_connection_count (grouped by SDK name/version/app ID)
             sdk_type: Type of SDK (for logging purposes)
         """
+        metadata = data.get('metadata', [])
         series = data.get('series', [])
 
-        if series:
-            # Get the most recent data point
-            latest_datapoint = series[-1]
-            connections = latest_datapoint.get('0', 0)
-            timestamp = latest_datapoint.get('time', 'unknown')
+        if not metadata or not series:
+            logger.warning("No service connection data available")
+            return
 
-            self.service_connection_gauge.labels(
-                timestamp=timestamp
-            ).set(connections)
+        # Series is chronological; the last point is the latest cumulative value
+        latest = series[-1]
+        for idx, meta in enumerate(metadata):
+            labels = {
+                label: str(meta.get(dim) or 'unknown')
+                for label, dim in zip(SERVICE_CONNECTION_LABELS, SERVICE_CONNECTION_GROUP_BY)
+            }
+            labels['sdk_version'] = self.clean_sdk_version(labels['sdk_version'])
+            minutes = latest.get(str(idx), 0)
+            # += so versions that clean to the same label (e.g. 8.7.0+abc, 8.7.0+def) sum
+            self.service_connection_gauge.labels(**labels).inc(minutes)
 
-            logger.info(f"Processed latest connections: {connections} at {timestamp}")
+        logger.info(f"Processed {len(metadata)} service connection series at {latest.get('time', 'unknown')}")
 
     def _process_stream_usage_data(self, data: Dict, sdk_type: str):
         """
@@ -236,9 +249,8 @@ class LaunchDarklySDKExporter:
 
                 self.sdk_clients_gauge.labels(
                     sdk_name=sdk_name,
-                    version=self.clean_sdk_version(version),
-                    timestamp=timestamp
-                ).set(connections)
+                    version=self.clean_sdk_version(version)
+                ).inc(connections)
 
                 logger.info(f"Processed {sdk_type} SDK: {sdk_name} {version} - Latest connections: {connections} at {timestamp}")
 

@@ -1,93 +1,538 @@
 {
-  "dashboard": {
-    "id": null,
-    "title": "LaunchDarkly SDK Usage",
-    "tags": ["launchdarkly", "sdk", "usage"],
-    "style": "dark",
-    "timezone": "browser",
-    "panels": [
-      {
-        "title": "SDK Clients by Type",
-        "type": "piechart",
-        "targets": [
-          {
-            "expr": "sum by (sdk_type) (launchdarkly_sdk_clients_total)",
-            "legendFormat": "{{sdk_type}}"
-          }
-        ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+  "uid": "launchdarkly-sdk-usage",
+  "title": "LaunchDarkly SDK Usage",
+  "tags": [
+    "launchdarkly",
+    "sdk",
+    "usage"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 41,
+  "version": 2,
+  "graphTooltip": 0,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "SDK Clients by SDK",
+      "type": "piechart",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
-      {
-        "title": "Top 10 SDK Versions",
-        "type": "bargauge",
-        "targets": [
-          {
-            "expr": "topk(10, sum by (sdk_name, version) (launchdarkly_sdk_clients_total))",
-            "legendFormat": "{{sdk_name}} {{version}}"
-          }
-        ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (sdk_name) (launchdarkly_sdk_clients_by_type_and_version)",
+          "legendFormat": "{{sdk_name}}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
-      {
-        "title": "Monthly Active Users (30d)",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "launchdarkly_mau_total{time_period=\"30d\"}",
-            "legendFormat": "MAU"
-          }
-        ],
-        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8}
-      },
-      {
-        "title": "API Requests Rate",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "rate(launchdarkly_exporter_api_requests_total[5m])",
-            "legendFormat": "Req/sec"
-          }
-        ],
-        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8}
-      },
-      {
-        "title": "Last Scrape Age",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "time() - launchdarkly_exporter_last_scrape_timestamp_seconds",
-            "legendFormat": "Seconds"
-          }
-        ],
-        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8}
-      },
-      {
-        "title": "API Success Rate",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "rate(launchdarkly_exporter_api_requests_total{status!=\"error\"}[5m]) / rate(launchdarkly_exporter_api_requests_total[5m]) * 100",
-            "legendFormat": "Success %"
-          }
-        ],
-        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8}
-      },
-      {
-        "title": "SDK Versions Over Time",
-        "type": "heatmap",
-        "targets": [
-          {
-            "expr": "count by (sdk_name, version) (launchdarkly_sdk_clients_total)",
-            "legendFormat": "{{sdk_name}} {{version}}"
-          }
-        ],
-        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 12}
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
       }
-    ],
-    "time": {
-      "from": "now-1h",
-      "to": "now"
     },
-    "refresh": "30s"
+    {
+      "id": 2,
+      "title": "Top 10 SDK Versions",
+      "type": "bargauge",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(10, sum by (sdk_name, version) (launchdarkly_sdk_clients_by_type_and_version))",
+          "legendFormat": "{{sdk_name}} {{version}}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "id": 3,
+      "title": "Service Connection Minutes (month to date)",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(launchdarkly_service_connection_minutes{sdk_name=~\"$sdk_name\",sdk_version=~\"$sdk_version\",sdk_app_id=~\"$sdk_app_id\"})",
+          "legendFormat": "Minutes"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "id": 4,
+      "title": "API Requests Rate",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(launchdarkly_exporter_api_requests_total[5m])",
+          "legendFormat": "Req/sec"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 8
+      }
+    },
+    {
+      "id": 5,
+      "title": "Last Scrape Age",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "time() - launchdarkly_exporter_last_scrape_timestamp_seconds",
+          "legendFormat": "Seconds"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      }
+    },
+    {
+      "id": 6,
+      "title": "API Success Rate",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(launchdarkly_exporter_api_requests_total{status!=\"error\"}[5m]) / rate(launchdarkly_exporter_api_requests_total[5m]) * 100",
+          "legendFormat": "Success %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      }
+    },
+    {
+      "id": 7,
+      "title": "SDK Versions Over Time",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (sdk_name, version) (launchdarkly_sdk_clients_by_type_and_version)",
+          "legendFormat": "{{sdk_name}} {{version}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "title": "Service Connection Minutes by Application ID",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (sdk_app_id) (increase(launchdarkly_service_connection_minutes{sdk_name=~\"$sdk_name\",sdk_version=~\"$sdk_version\",sdk_app_id=~\"$sdk_app_id\"}[$__interval]))",
+          "legendFormat": "{{sdk_app_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      }
+    },
+    {
+      "id": 9,
+      "title": "Service Connection Minutes by SDK Version",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (sdk_version) (increase(launchdarkly_service_connection_minutes{sdk_name=~\"$sdk_name\",sdk_version=~\"$sdk_version\",sdk_app_id=~\"$sdk_app_id\"}[$__interval]))",
+          "legendFormat": "{{sdk_version}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      }
+    },
+    {
+      "id": 10,
+      "title": "Service Connection Minutes by SDK",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (sdk_name) (increase(launchdarkly_service_connection_minutes{sdk_name=~\"$sdk_name\",sdk_version=~\"$sdk_version\",sdk_app_id=~\"$sdk_app_id\"}[$__interval]))",
+          "legendFormat": "{{sdk_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "sdk_name",
+        "label": "SDK",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(launchdarkly_service_connection_minutes, sdk_name)",
+          "refId": "v"
+        },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "sort": 1
+      },
+      {
+        "name": "sdk_version",
+        "label": "SDK version",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(launchdarkly_service_connection_minutes, sdk_version)",
+          "refId": "v"
+        },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "sort": 1
+      },
+      {
+        "name": "sdk_app_id",
+        "label": "Application ID",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(launchdarkly_service_connection_minutes, sdk_app_id)",
+          "refId": "v"
+        },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "sort": 1
+      }
+    ]
   }
 }
