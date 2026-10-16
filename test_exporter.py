@@ -46,7 +46,7 @@ def test_endpoints():
         if response.status_code == 200:
             metrics = response.text
             # Check for our custom metrics
-            if "launchdarkly_sdk_clients_total" in metrics:
+            if "launchdarkly_sdk_clients_by_type_and_version" in metrics:
                 print("   ✅ Metrics endpoint working - Custom metrics found")
             else:
                 print("   ⚠️  Metrics endpoint working but no custom metrics yet")
