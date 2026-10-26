@@ -47,21 +47,16 @@ The exporter provides the following Prometheus metrics:
 ### SDK Usage Metrics
 
 - **`launchdarkly_sdk_clients_by_type_and_version`** - SDK connections by language and version
-  - Labels: `sdk_name`, `version`, `timestamp`
+  - Labels: `sdk_name`, `version`
   - Type: Gauge
   - Description: Number of connections for each SDK version at the time of collection
 
 ### Connection Count Metrics
 
-- **`launchdarkly_service_connection_count`** - Server-side service connections (billable)
-  - Labels: `timestamp`
+- **`launchdarkly_service_connection_minutes`** - Server-side service connection minutes (billable)
+  - Labels: `sdk_name`, `sdk_version`, `sdk_app_id`
   - Type: Gauge
-  - Description: Total server-side connections that count toward billing
-
-- **`launchdarkly_client_side_connection_count`** - Client-side connections
-  - Labels: `timestamp`
-  - Type: Gauge
-  - Description: Total client-side SDK connections
+  - Description: Month-to-date (cumulative, resets monthly) connection minutes, grouped by SDK, SDK version and application ID. Use `increase()` for per-period values.
 
 ### Exporter Metrics
 
@@ -214,13 +209,13 @@ topk(10, launchdarkly_sdk_clients_by_type_and_version)
 ### Service Connection Count (Billable)
 
 ```promql
-launchdarkly_service_connection_count
+launchdarkly_service_connection_minutes
 ```
 
 ### Connection Trends Over Time
 
 ```promql
-rate(launchdarkly_service_connection_count[1h])
+sum by (sdk_app_id) (increase(launchdarkly_service_connection_minutes[1d]))
 ```
 
 ### Exporter Health Check

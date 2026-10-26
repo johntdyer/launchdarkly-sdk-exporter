@@ -1,3 +1,7 @@
+variables:
+  # Read version from VERSION file
+  VERSION_FILE: "VERSION"
+
 stages:
   - build
   - push
@@ -19,6 +23,12 @@ build_image:
     IMAGE_FULL: "$IMAGE_NAME:$IMAGE_VERSION"
     LAUNCHDARKLY_API_KEY: this-is-not-a-real-key
   script:
+    - export IMAGE_VERSION=$(cat $VERSION_FILE)
+    - export IMAGE_FULL="$IMAGE_NAME:$IMAGE_VERSION"
+
+    - echo "Application version is $IMAGE_VERSION"
+    - echo "Application IMAGE_FULL is $IMAGE_FULL"
+    
     - mkdir -p containers/linux/amd64 containers/linux/arm64
     - docker buildx create --use
 
